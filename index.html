@@ -39,7 +39,7 @@
             background: rgba(255, 255, 255, 0.1);
             backdrop-filter: blur(10px);
             border-radius: 20px;
-            padding: 100px;
+            padding: 40px;
             box-shadow: 0 8px 32px rgba(0, 0, 0, 0.3);
         }
 
@@ -102,6 +102,7 @@
 
         .bar-label {
             margin-top: 15px;
+            padding: 3px;
             font-size: 1.1em;
             font-weight: 500;
             color: rgba(255, 255, 255, 0.9);
@@ -229,7 +230,7 @@
                         <div class="bar" style="height: ${barHeight}px;">
                             <div class="bar-value">${item.games}</div>
                         </div>
-                        <div class="bar-label" style="padding: 3px;">${item.team} </div>
+                        <div class="bar-label">${item.team} </div>
                     </div>
                 `;
             });
