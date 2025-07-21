@@ -178,8 +178,9 @@
     </div>
 
     <script>
-        // Your Google Sheets published CSV URL
-        const SHEET_URL = 'https://docs.google.com/spreadsheets/d/e/2PACX-1vS_Io1665MYOuXfuiGlX4EL7xIO0vfP9GIM4UdEn8sMHo2wKZcA-o00sIupoM6hxrH5mYsffvAeGe4Z/pub?output=csv';
+        // Your Google Sheets published URLs
+        const SHEET_HTML_URL = 'https://docs.google.com/spreadsheets/d/e/2PACX-1vS_Io1665MYOuXfuiGlX4EL7xIO0vfP9GIM4UdEn8sMHo2wKZcA-o00sIupoM6hxrH5mYsffvAeGe4Z/pubhtml';
+        const SHEET_CSV_URL = 'https://docs.google.com/spreadsheets/d/e/2PACX-1vS_Io1665MYOuXfuiGlX4EL7xIO0vfP9GIM4UdEn8sMHo2wKZcA-o00sIupoM6hxrH5mYsffvAeGe4Z/pub?output=csv';
         const BACKUP_URL = 'https://docs.google.com/spreadsheets/d/e/2PACX-1vS_Io1665MYOuXfuiGlX4EL7xIO0vfP9GIM4UdEn8sMHo2wKZcA-o00sIupoM6hxrH5mYsffvAeGe4Z/pub?gid=0&single=true&output=csv';
 
         function createBarChart(data) {
@@ -204,6 +205,42 @@
             
             html += '</div>';
             return html;
+        }
+
+        function parseHTMLTable(html) {
+            // Create a temporary DOM element to parse the HTML
+            const parser = new DOMParser();
+            const doc = parser.parseFromString(html, 'text/html');
+            
+            // Look for table data - Google Sheets uses specific table structure
+            const tables = doc.querySelectorAll('table');
+            
+            for (let table of tables) {
+                const rows = table.querySelectorAll('tr');
+                const data = [];
+                
+                // Skip header row, start from row 1
+                for (let i = 1; i < rows.length; i++) {
+                    const cells = rows[i].querySelectorAll('td');
+                    if (cells.length >= 2) {
+                        const team = cells[0].textContent.trim();
+                        const games = cells[1].textContent.trim();
+                        
+                        if (team && games && !isNaN(parseInt(games))) {
+                            data.push({
+                                team: team,
+                                games: parseInt(games)
+                            });
+                        }
+                    }
+                }
+                
+                if (data.length > 0) {
+                    return data;
+                }
+            }
+            
+            return [];
         }
 
         function parseCSV(csv) {
@@ -241,51 +278,78 @@
             showRefreshIndicator();
             
             try {
-                // Add cache-busting parameter to force fresh data
                 const timestamp = new Date().getTime();
-                const urlWithCacheBust = `${SHEET_URL}&_=${timestamp}`;
+                let data = [];
                 
-                console.log('Fetching data from:', urlWithCacheBust);
-                
-                let response;
-                let csv;
-                
-                // Try primary URL first with cache busting
+                // Method 1: Try HTML scraping first (potentially faster)
                 try {
-                    response = await fetch(urlWithCacheBust, {
+                    console.log('Trying HTML scraping method...');
+                    const htmlUrl = `${SHEET_HTML_URL}?_=${timestamp}`;
+                    const htmlResponse = await fetch(htmlUrl, {
                         cache: 'no-cache',
                         headers: {
                             'Cache-Control': 'no-cache',
                             'Pragma': 'no-cache'
                         }
                     });
-                    if (!response.ok) throw new Error(`HTTP ${response.status}`);
-                    csv = await response.text();
-                } catch (primaryError) {
-                    console.log('Primary URL failed, trying backup:', primaryError);
-                    // Try backup URL with cache busting
-                    const backupWithCacheBust = `${BACKUP_URL}&_=${timestamp}`;
-                    response = await fetch(backupWithCacheBust, {
-                        cache: 'no-cache',
-                        headers: {
-                            'Cache-Control': 'no-cache',
-                            'Pragma': 'no-cache'
+                    
+                    if (htmlResponse.ok) {
+                        const html = await htmlResponse.text();
+                        console.log('HTML fetched, parsing table...');
+                        data = parseHTMLTable(html);
+                        
+                        if (data.length > 0) {
+                            console.log('HTML method successful! Data:', data);
+                        } else {
+                            throw new Error('No data found in HTML table');
                         }
-                    });
-                    if (!response.ok) {
-                        throw new Error(`Both URLs failed. Status: ${response.status}`);
+                    } else {
+                        throw new Error(`HTML fetch failed: ${htmlResponse.status}`);
                     }
-                    csv = await response.text();
+                } catch (htmlError) {
+                    console.log('HTML method failed:', htmlError.message);
+                    
+                    // Method 2: Fallback to CSV method
+                    console.log('Falling back to CSV method...');
+                    const csvUrl = `${SHEET_CSV_URL}&_=${timestamp}`;
+                    
+                    try {
+                        const csvResponse = await fetch(csvUrl, {
+                            cache: 'no-cache',
+                            headers: {
+                                'Cache-Control': 'no-cache',
+                                'Pragma': 'no-cache'
+                            }
+                        });
+                        
+                        if (!csvResponse.ok) throw new Error(`CSV HTTP ${csvResponse.status}`);
+                        const csv = await csvResponse.text();
+                        console.log('CSV data:', csv);
+                        data = parseCSV(csv);
+                        
+                    } catch (csvError) {
+                        console.log('CSV method failed, trying backup:', csvError);
+                        const backupUrl = `${BACKUP_URL}&_=${timestamp}`;
+                        const backupResponse = await fetch(backupUrl, {
+                            cache: 'no-cache',
+                            headers: {
+                                'Cache-Control': 'no-cache',
+                                'Pragma': 'no-cache'
+                            }
+                        });
+                        
+                        if (!backupResponse.ok) {
+                            throw new Error(`All methods failed. Status: ${backupResponse.status}`);
+                        }
+                        const csv = await backupResponse.text();
+                        data = parseCSV(csv);
+                    }
                 }
                 
-                console.log('Raw CSV data:', csv.substring(0, 200) + '...');
-                console.log('Full CSV:', csv);
-                
-                const data = parseCSV(csv);
-                console.log('Parsed data:', data);
+                console.log('Final parsed data:', data);
                 
                 if (data.length === 0) {
-                    throw new Error('No valid data found. Check if sheet has Team Name and Games Won columns.');
+                    throw new Error('No valid data found in any method');
                 }
                 
                 const chartHtml = createBarChart(data);
