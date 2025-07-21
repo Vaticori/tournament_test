@@ -178,10 +178,12 @@
     </div>
 
     <script>
-        // Your Google Sheets published URLs
-        const SHEET_HTML_URL = 'https://docs.google.com/spreadsheets/d/e/2PACX-1vS_Io1665MYOuXfuiGlX4EL7xIO0vfP9GIM4UdEn8sMHo2wKZcA-o00sIupoM6hxrH5mYsffvAeGe4Z/pubhtml';
-        const SHEET_CSV_URL = 'https://docs.google.com/spreadsheets/d/e/2PACX-1vS_Io1665MYOuXfuiGlX4EL7xIO0vfP9GIM4UdEn8sMHo2wKZcA-o00sIupoM6hxrH5mYsffvAeGe4Z/pub?output=csv';
-        const BACKUP_URL = 'https://docs.google.com/spreadsheets/d/e/2PACX-1vS_Io1665MYOuXfuiGlX4EL7xIO0vfP9GIM4UdEn8sMHo2wKZcA-o00sIupoM6hxrH5mYsffvAeGe4Z/pub?gid=0&single=true&output=csv';
+        // Google Apps Script Web App URL (replace with your actual URL from new account)
+        const APPS_SCRIPT_URL = 'https://script.google.com/macros/s/AKfycbw3fv2FpkOXytGgkvwnmKvV44_YIgXRctnq9Lz2PnlaRIAcVnr0dEZuAeQSQabuaosgfA/exec';
+        
+        // Backup URLs for your NEW Google Sheet
+        const SHEET_HTML_URL = 'https://docs.google.com/spreadsheets/d/e/2PACX-1vQSbQkxYYdJXmWWfATyJUU-ntIDtcnt1UVJ-nAkXZeN5ETE-wUsY52emKH14wcg0YtmCI8wn9TvGyn_/pubhtml';
+        const SHEET_CSV_URL = 'https://docs.google.com/spreadsheets/d/e/2PACX-1vQSbQkxYYdJXmWWfATyJUU-ntIDtcnt1UVJ-nAkXZeN5ETE-wUsY52emKH14wcg0YtmCI8wn9TvGyn_/pub?output=csv';
 
         function createBarChart(data) {
             // Sort data by games won (highest first)
@@ -281,7 +283,44 @@
                 const timestamp = new Date().getTime();
                 let data = [];
                 
-                // Method 1: Try HTML scraping first (potentially faster)
+                // Method 1: Try Google Apps Script first (FASTEST - Real-time!)
+                if (APPS_SCRIPT_URL !== 'YOUR_APPS_SCRIPT_URL_HERE') {
+                    try {
+                        console.log('Trying Google Apps Script method (real-time)...');
+                        const appsScriptUrl = `${APPS_SCRIPT_URL}?_=${timestamp}`;
+                        const response = await fetch(appsScriptUrl, {
+                            cache: 'no-cache',
+                            headers: {
+                                'Cache-Control': 'no-cache',
+                                'Pragma': 'no-cache'
+                            }
+                        });
+                        
+                        if (response.ok) {
+                            const jsonData = await response.json();
+                            console.log('Apps Script response:', jsonData);
+                            
+                            if (jsonData.success && jsonData.data && jsonData.data.length > 0) {
+                                data = jsonData.data;
+                                console.log('🚀 Real-time method successful! Data:', data);
+                            } else {
+                                throw new Error('No data in Apps Script response');
+                            }
+                        } else {
+                            throw new Error(`Apps Script failed: ${response.status}`);
+                        }
+                    } catch (appsScriptError) {
+                        console.log('Apps Script method failed:', appsScriptError.message);
+                        throw appsScriptError; // Try fallback methods
+                    }
+                } else {
+                    throw new Error('Apps Script URL not configured');
+                }
+                
+            } catch (primaryError) {
+                console.log('Falling back to slower methods...');
+                
+                // Method 2: HTML scraping fallback
                 try {
                     console.log('Trying HTML scraping method...');
                     const htmlUrl = `${SHEET_HTML_URL}?_=${timestamp}`;
@@ -295,7 +334,6 @@
                     
                     if (htmlResponse.ok) {
                         const html = await htmlResponse.text();
-                        console.log('HTML fetched, parsing table...');
                         data = parseHTMLTable(html);
                         
                         if (data.length > 0) {
@@ -309,59 +347,41 @@
                 } catch (htmlError) {
                     console.log('HTML method failed:', htmlError.message);
                     
-                    // Method 2: Fallback to CSV method
-                    console.log('Falling back to CSV method...');
+                    // Method 3: CSV fallback
+                    console.log('Trying CSV method...');
                     const csvUrl = `${SHEET_CSV_URL}&_=${timestamp}`;
-                    
-                    try {
-                        const csvResponse = await fetch(csvUrl, {
-                            cache: 'no-cache',
-                            headers: {
-                                'Cache-Control': 'no-cache',
-                                'Pragma': 'no-cache'
-                            }
-                        });
-                        
-                        if (!csvResponse.ok) throw new Error(`CSV HTTP ${csvResponse.status}`);
-                        const csv = await csvResponse.text();
-                        console.log('CSV data:', csv);
-                        data = parseCSV(csv);
-                        
-                    } catch (csvError) {
-                        console.log('CSV method failed, trying backup:', csvError);
-                        const backupUrl = `${BACKUP_URL}&_=${timestamp}`;
-                        const backupResponse = await fetch(backupUrl, {
-                            cache: 'no-cache',
-                            headers: {
-                                'Cache-Control': 'no-cache',
-                                'Pragma': 'no-cache'
-                            }
-                        });
-                        
-                        if (!backupResponse.ok) {
-                            throw new Error(`All methods failed. Status: ${backupResponse.status}`);
+                    const csvResponse = await fetch(csvUrl, {
+                        cache: 'no-cache',
+                        headers: {
+                            'Cache-Control': 'no-cache',
+                            'Pragma': 'no-cache'
                         }
-                        const csv = await backupResponse.text();
-                        data = parseCSV(csv);
+                    });
+                    
+                    if (!csvResponse.ok) {
+                        throw new Error(`All methods failed. CSV status: ${csvResponse.status}`);
                     }
+                    const csv = await csvResponse.text();
+                    data = parseCSV(csv);
                 }
-                
-                console.log('Final parsed data:', data);
-                
-                if (data.length === 0) {
-                    throw new Error('No valid data found in any method');
-                }
-                
-                const chartHtml = createBarChart(data);
-                document.getElementById('chart-display').innerHTML = chartHtml;
-                document.getElementById('last-update').textContent = new Date().toLocaleTimeString();
-                
-            } catch (error) {
-                console.error('Error fetching data:', error);
-                document.getElementById('chart-display').innerHTML = 
-                    `<div class="error">Error loading data: ${error.message}</div>`;
             }
+            
+            console.log('Final parsed data:', data);
+            
+            if (data.length === 0) {
+                throw new Error('No valid data found in any method');
+            }
+            
+            const chartHtml = createBarChart(data);
+            document.getElementById('chart-display').innerHTML = chartHtml;
+            document.getElementById('last-update').textContent = new Date().toLocaleTimeString();
+            
+        } catch (error) {
+            console.error('Error fetching data:', error);
+            document.getElementById('chart-display').innerHTML = 
+                `<div class="error">Error loading data: ${error.message}</div>`;
         }
+    }
 
         // Initial load
         fetchSheetData();
