@@ -276,12 +276,13 @@
         async function fetchSheetData() {
             showRefreshIndicator();
             
+            // Define timestamp at function level so it's available everywhere
+            const timestamp = new Date().getTime();
+            let data = [];
+            
             try {
-                const timestamp = new Date().getTime();
-                let data = [];
-                
                 // Method 1: Try Google Apps Script first (Real-time)
-                if (APPS_SCRIPT_URL !== 'YOUR_NEW_APPS_SCRIPT_URL_HERE') {
+                if (APPS_SCRIPT_URL !== 'https://script.google.com/macros/s/AKfycbw3fv2FpkOXytGgkvwnmKvV44_YIgXRctnq9Lz2PnlaRIAcVnr0dEZuAeQSQabuaosgfA/exec') {
                     console.log('Trying Google Apps Script method...');
                     
                     try {
