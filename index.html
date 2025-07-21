@@ -241,27 +241,45 @@
             showRefreshIndicator();
             
             try {
-                console.log('Fetching data from:', SHEET_URL);
+                // Add cache-busting parameter to force fresh data
+                const timestamp = new Date().getTime();
+                const urlWithCacheBust = `${SHEET_URL}&_=${timestamp}`;
+                
+                console.log('Fetching data from:', urlWithCacheBust);
                 
                 let response;
                 let csv;
                 
-                // Try primary URL first
+                // Try primary URL first with cache busting
                 try {
-                    response = await fetch(SHEET_URL);
+                    response = await fetch(urlWithCacheBust, {
+                        cache: 'no-cache',
+                        headers: {
+                            'Cache-Control': 'no-cache',
+                            'Pragma': 'no-cache'
+                        }
+                    });
                     if (!response.ok) throw new Error(`HTTP ${response.status}`);
                     csv = await response.text();
                 } catch (primaryError) {
                     console.log('Primary URL failed, trying backup:', primaryError);
-                    // Try backup URL
-                    response = await fetch(BACKUP_URL);
+                    // Try backup URL with cache busting
+                    const backupWithCacheBust = `${BACKUP_URL}&_=${timestamp}`;
+                    response = await fetch(backupWithCacheBust, {
+                        cache: 'no-cache',
+                        headers: {
+                            'Cache-Control': 'no-cache',
+                            'Pragma': 'no-cache'
+                        }
+                    });
                     if (!response.ok) {
-                        throw new Error(`Both URLs failed. Status: ${response.status}. Make sure your sheet is published to web.`);
+                        throw new Error(`Both URLs failed. Status: ${response.status}`);
                     }
                     csv = await response.text();
                 }
                 
                 console.log('Raw CSV data:', csv.substring(0, 200) + '...');
+                console.log('Full CSV:', csv);
                 
                 const data = parseCSV(csv);
                 console.log('Parsed data:', data);
