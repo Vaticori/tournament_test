@@ -178,12 +178,25 @@
     </div>
 
     <script>
-        // Google Apps Script Web App URL (replace with your actual URL from new account)
-        const APPS_SCRIPT_URL = 'https://script.google.com/macros/s/AKfycbw3fv2FpkOXytGgkvwnmKvV44_YIgXRctnq9Lz2PnlaRIAcVnr0dEZuAeQSQabuaosgfA/exec';
+        // Google Apps Script Web App URL - Replace with your actual URL
+        const APPS_SCRIPT_URL = 'YOUR_NEW_APPS_SCRIPT_URL_HERE';
         
-        // Backup URLs for your NEW Google Sheet
+        // Backup URLs for your Google Sheet
         const SHEET_HTML_URL = 'https://docs.google.com/spreadsheets/d/e/2PACX-1vQSbQkxYYdJXmWWfATyJUU-ntIDtcnt1UVJ-nAkXZeN5ETE-wUsY52emKH14wcg0YtmCI8wn9TvGyn_/pubhtml';
         const SHEET_CSV_URL = 'https://docs.google.com/spreadsheets/d/e/2PACX-1vQSbQkxYYdJXmWWfATyJUU-ntIDtcnt1UVJ-nAkXZeN5ETE-wUsY52emKH14wcg0YtmCI8wn9TvGyn_/pub?output=csv';
+
+        function showRefreshIndicator() {
+            const indicator = document.getElementById('refresh-indicator');
+            const lastUpdated = document.getElementById('last-updated-container');
+            
+            indicator.classList.add('show');
+            lastUpdated.classList.add('refreshing');
+            
+            setTimeout(() => {
+                indicator.classList.remove('show');
+                lastUpdated.classList.remove('refreshing');
+            }, 2000);
+        }
 
         function createBarChart(data) {
             // Sort data by games won (highest first)
@@ -210,11 +223,8 @@
         }
 
         function parseHTMLTable(html) {
-            // Create a temporary DOM element to parse the HTML
             const parser = new DOMParser();
             const doc = parser.parseFromString(html, 'text/html');
-            
-            // Look for table data - Google Sheets uses specific table structure
             const tables = doc.querySelectorAll('table');
             
             for (let table of tables) {
@@ -263,19 +273,6 @@
             return data;
         }
 
-        function showRefreshIndicator() {
-            const indicator = document.getElementById('refresh-indicator');
-            const lastUpdated = document.getElementById('last-updated-container');
-            
-            indicator.classList.add('show');
-            lastUpdated.classList.add('refreshing');
-            
-            setTimeout(() => {
-                indicator.classList.remove('show');
-                lastUpdated.classList.remove('refreshing');
-            }, 2000);
-        }
-
         async function fetchSheetData() {
             showRefreshIndicator();
             
@@ -283,13 +280,12 @@
                 const timestamp = new Date().getTime();
                 let data = [];
                 
-                // Method 1: Try Google Apps Script first (FASTEST - Real-time!)
+                // Method 1: Try Google Apps Script first (Real-time)
                 if (APPS_SCRIPT_URL !== 'YOUR_NEW_APPS_SCRIPT_URL_HERE') {
+                    console.log('Trying Google Apps Script method...');
+                    
                     try {
-                        console.log('Trying Google Apps Script method (real-time)...');
-                        console.log('Apps Script URL:', APPS_SCRIPT_URL);
-                        const appsScriptUrl = `${APPS_SCRIPT_URL}?_=${timestamp}`;
-                        const response = await fetch(appsScriptUrl, {
+                        const response = await fetch(`${APPS_SCRIPT_URL}?_=${timestamp}`, {
                             cache: 'no-cache',
                             headers: {
                                 'Cache-Control': 'no-cache',
@@ -297,45 +293,36 @@
                             }
                         });
                         
-                        console.log('Apps Script response status:', response.status);
-                        
                         if (response.ok) {
                             const jsonData = await response.json();
                             console.log('Apps Script response:', jsonData);
                             
                             if (jsonData.success && jsonData.data && jsonData.data.length > 0) {
                                 data = jsonData.data;
-                                console.log('🚀 Real-time method successful! Data:', data);
+                                console.log('✅ Real-time method successful!');
                             } else {
-                                console.log('Apps Script returned no data or error:', jsonData);
                                 throw new Error('No data in Apps Script response');
                             }
                         } else {
-                            console.log('Apps Script HTTP error:', response.status, response.statusText);
                             throw new Error(`Apps Script failed: ${response.status}`);
                         }
-                    } catch (appsScriptError) {
-                        console.log('Apps Script method failed:', appsScriptError.message);
-                        throw appsScriptError; // Try fallback methods
+                    } catch (appsError) {
+                        console.log('Apps Script failed:', appsError.message);
+                        throw appsError;
                     }
                 } else {
-                    console.log('⚠️ Apps Script URL not configured - using fallback methods');
-                    throw new Error('Apps Script URL not configured');
+                    console.log('Apps Script URL not configured, trying fallback methods...');
+                    throw new Error('Apps Script not configured');
                 }
                 
             } catch (primaryError) {
-                console.log('Falling back to slower methods...');
+                console.log('Trying fallback methods...');
                 
-                // Method 2: HTML scraping fallback
                 try {
-                    console.log('Trying HTML scraping method...');
-                    const htmlUrl = `${SHEET_HTML_URL}?_=${timestamp}`;
-                    const htmlResponse = await fetch(htmlUrl, {
-                        cache: 'no-cache',
-                        headers: {
-                            'Cache-Control': 'no-cache',
-                            'Pragma': 'no-cache'
-                        }
+                    // Method 2: HTML scraping
+                    console.log('Trying HTML method...');
+                    const htmlResponse = await fetch(`${SHEET_HTML_URL}?_=${timestamp}`, {
+                        cache: 'no-cache'
                     });
                     
                     if (htmlResponse.ok) {
@@ -343,51 +330,52 @@
                         data = parseHTMLTable(html);
                         
                         if (data.length > 0) {
-                            console.log('HTML method successful! Data:', data);
+                            console.log('✅ HTML method successful!');
                         } else {
-                            throw new Error('No data found in HTML table');
+                            throw new Error('No data in HTML');
                         }
                     } else {
-                        throw new Error(`HTML fetch failed: ${htmlResponse.status}`);
+                        throw new Error(`HTML method failed: ${htmlResponse.status}`);
                     }
                 } catch (htmlError) {
                     console.log('HTML method failed:', htmlError.message);
                     
                     // Method 3: CSV fallback
                     console.log('Trying CSV method...');
-                    const csvUrl = `${SHEET_CSV_URL}&_=${timestamp}`;
-                    const csvResponse = await fetch(csvUrl, {
-                        cache: 'no-cache',
-                        headers: {
-                            'Cache-Control': 'no-cache',
-                            'Pragma': 'no-cache'
-                        }
+                    const csvResponse = await fetch(`${SHEET_CSV_URL}&_=${timestamp}`, {
+                        cache: 'no-cache'
                     });
                     
-                    if (!csvResponse.ok) {
+                    if (csvResponse.ok) {
+                        const csv = await csvResponse.text();
+                        data = parseCSV(csv);
+                        
+                        if (data.length > 0) {
+                            console.log('✅ CSV method successful!');
+                        } else {
+                            throw new Error('No data found in any method');
+                        }
+                    } else {
                         throw new Error(`All methods failed. CSV status: ${csvResponse.status}`);
                     }
-                    const csv = await csvResponse.text();
-                    data = parseCSV(csv);
                 }
             }
             
-            console.log('Final parsed data:', data);
-            
+            // Display the data
             if (data.length === 0) {
-                throw new Error('No valid data found in any method');
+                throw new Error('No valid data found');
             }
             
             const chartHtml = createBarChart(data);
             document.getElementById('chart-display').innerHTML = chartHtml;
             document.getElementById('last-update').textContent = new Date().toLocaleTimeString();
             
-        } catch (error) {
-            console.error('Error fetching data:', error);
-            document.getElementById('chart-display').innerHTML = 
-                `<div class="error">Error loading data: ${error.message}</div>`;
-        }
-    
+        // } catch (error) {
+        //     console.error('Final error:', error);
+        //     document.getElementById('chart-display').innerHTML = 
+        //         `<div class="error">Error: ${error.message}</div>`;
+        // }
+    }
 
         // Initial load
         fetchSheetData();
