@@ -1,0 +1,267 @@
+<!DOCTYPE html>
+<html lang="en">
+<head>
+    <meta charset="UTF-8">
+    <meta name="viewport" content="width=device-width, initial-scale=1.0">
+    <title>Tournament Live Display</title>
+    <style>
+        * {
+            margin: 0;
+            padding: 0;
+            box-sizing: border-box;
+        }
+
+        body {
+            font-family: 'Arial Black', Arial, sans-serif;
+            background: linear-gradient(45deg, #1a1a2e, #16213e, #0f3460);
+            background-size: 400% 400%;
+            animation: gradientShift 8s ease infinite;
+            color: white;
+            overflow: hidden;
+            height: 100vh;
+        }
+
+        @keyframes gradientShift {
+            0% { background-position: 0% 50%; }
+            50% { background-position: 100% 50%; }
+            100% { background-position: 0% 50%; }
+        }
+
+        .container {
+            position: relative;
+            width: 100%;
+            height: 100vh;
+            display: flex;
+            flex-direction: column;
+            align-items: center;
+            justify-content: center;
+            padding: 20px;
+        }
+
+        .title {
+            font-size: 4em;
+            font-weight: bold;
+            text-align: center;
+            margin-bottom: 30px;
+            text-shadow: 0 0 20px #00ffff, 0 0 40px #00ffff;
+            animation: glow 2s ease-in-out infinite alternate;
+        }
+
+        @keyframes glow {
+            from { text-shadow: 0 0 20px #00ffff, 0 0 40px #00ffff; }
+            to { text-shadow: 0 0 30px #ff00ff, 0 0 60px #ff00ff; }
+        }
+
+        .data-container {
+            background: rgba(0, 0, 0, 0.3);
+            backdrop-filter: blur(10px);
+            border: 2px solid rgba(255, 255, 255, 0.2);
+            border-radius: 20px;
+            padding: 40px;
+            box-shadow: 0 0 50px rgba(0, 255, 255, 0.3);
+            animation: float 3s ease-in-out infinite;
+            max-width: 80%;
+            min-width: 60%;
+        }
+
+        @keyframes float {
+            0%, 100% { transform: translateY(0px); }
+            50% { transform: translateY(-10px); }
+        }
+
+        .leaderboard {
+            font-size: 2.5em;
+            text-align: center;
+        }
+
+        .player-row {
+            display: flex;
+            justify-content: space-between;
+            padding: 15px 0;
+            border-bottom: 2px solid rgba(255, 255, 255, 0.1);
+            animation: slideIn 1s ease-out;
+        }
+
+        .player-row:last-child {
+            border-bottom: none;
+        }
+
+        @keyframes slideIn {
+            from { opacity: 0; transform: translateX(-50px); }
+            to { opacity: 1; transform: translateX(0); }
+        }
+
+        .rank {
+            color: #ffd700;
+            font-weight: bold;
+            min-width: 80px;
+        }
+
+        .player-name {
+            flex: 1;
+            text-align: left;
+            font-weight: bold;
+        }
+
+        .score {
+            color: #00ff00;
+            font-weight: bold;
+            min-width: 120px;
+            text-align: right;
+        }
+
+        .decoration {
+            position: absolute;
+            width: 100px;
+            height: 100px;
+            opacity: 0.7;
+        }
+
+        .decoration.top-left {
+            top: 50px;
+            left: 50px;
+            animation: bounce 2s infinite;
+        }
+
+        .decoration.top-right {
+            top: 50px;
+            right: 50px;
+            animation: bounce 2s infinite 0.5s;
+        }
+
+        .decoration.bottom-left {
+            bottom: 50px;
+            left: 50px;
+            animation: bounce 2s infinite 1s;
+        }
+
+        .decoration.bottom-right {
+            bottom: 50px;
+            right: 50px;
+            animation: bounce 2s infinite 1.5s;
+        }
+
+        @keyframes bounce {
+            0%, 20%, 50%, 80%, 100% { transform: translateY(0); }
+            40% { transform: translateY(-20px); }
+            60% { transform: translateY(-10px); }
+        }
+
+        .last-updated {
+            position: absolute;
+            bottom: 20px;
+            right: 20px;
+            font-size: 1.2em;
+            opacity: 0.8;
+        }
+
+        .loading {
+            font-size: 1.5em;
+            text-align: center;
+            animation: pulse 1s infinite;
+        }
+
+        @keyframes pulse {
+            0% { opacity: 0.5; }
+            50% { opacity: 1; }
+            100% { opacity: 0.5; }
+        }
+    </style>
+</head>
+<body>
+    <div class="container">
+        <!-- Decorative elements (replace these with your GIFs) -->
+        <div class="decoration top-left">🏆</div>
+        <div class="decoration top-right">⚡</div>
+        <div class="decoration bottom-left">🎮</div>
+        <div class="decoration bottom-right">🔥</div>
+
+        <h1 class="title">TOURNAMENT LEADERBOARD</h1>
+        
+        <div class="data-container">
+            <div id="data-display" class="leaderboard">
+                <div class="loading">Loading tournament data...</div>
+            </div>
+        </div>
+
+        <div class="last-updated">
+            Last updated: <span id="last-update">Never</span>
+        </div>
+    </div>
+
+    <script>
+        // Replace this URL with your Google Sheets CSV export URL
+        // Go to File → Share → Publish to web → Choose CSV format
+        const SHEET_URL = 'YOUR_GOOGLE_SHEETS_CSV_URL_HERE';
+        
+        // Sample data structure - replace with your actual sheet structure
+        const sampleData = [
+            { rank: 1, name: 'Player Alpha', score: 2500 },
+            { rank: 2, name: 'Team Beta', score: 2200 },
+            { rank: 3, name: 'Squad Gamma', score: 1900 },
+            { rank: 4, name: 'Pro Delta', score: 1750 },
+            { rank: 5, name: 'Elite Epsilon', score: 1600 }
+        ];
+
+        function displayData(data) {
+            const display = document.getElementById('data-display');
+            
+            let html = '';
+            data.forEach(row => {
+                html += `
+                    <div class="player-row">
+                        <span class="rank">#${row.rank}</span>
+                        <span class="player-name">${row.name}</span>
+                        <span class="score">${row.score} pts</span>
+                    </div>
+                `;
+            });
+            
+            display.innerHTML = html;
+            document.getElementById('last-update').textContent = new Date().toLocaleTimeString();
+        }
+
+        function fetchSheetData() {
+            // For now, using sample data
+            // Replace this with actual Google Sheets fetch when you have the URL
+            displayData(sampleData);
+            
+            // Uncomment and modify this when you have your Google Sheets URL:
+            /*
+            fetch(SHEET_URL)
+                .then(response => response.text())
+                .then(csv => {
+                    const rows = csv.split('\n').slice(1); // Skip header row
+                    const data = rows.map((row, index) => {
+                        const columns = row.split(',');
+                        return {
+                            rank: index + 1,
+                            name: columns[0], // Adjust column indices based on your sheet
+                            score: columns[1]
+                        };
+                    });
+                    displayData(data);
+                })
+                .catch(error => {
+                    console.error('Error fetching data:', error);
+                    document.getElementById('data-display').innerHTML = 
+                        '<div class="loading">Error loading data. Check console.</div>';
+                });
+            */
+        }
+
+        // Initial load
+        fetchSheetData();
+
+        // Auto-refresh every 30 seconds
+        setInterval(fetchSheetData, 30000);
+
+        // You can also manually refresh by pressing 'R' key
+        document.addEventListener('keydown', function(event) {
+            if (event.key === 'r' || event.key === 'R') {
+                fetchSheetData();
+            }
+        });
+    </script>
+</body>
+</html>
