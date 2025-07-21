@@ -113,6 +113,32 @@
             background: rgba(0, 0, 0, 0.2);
             padding: 8px 15px;
             border-radius: 20px;
+            transition: all 0.3s ease;
+        }
+
+        .refreshing {
+            background: rgba(0, 255, 0, 0.3) !important;
+            opacity: 1 !important;
+            animation: pulse 1s infinite;
+        }
+
+        .refresh-indicator {
+            position: absolute;
+            top: 20px;
+            right: 20px;
+            font-size: 1em;
+            background: rgba(0, 255, 0, 0.8);
+            color: white;
+            padding: 10px 20px;
+            border-radius: 25px;
+            opacity: 0;
+            transform: translateY(-20px);
+            transition: all 0.4s ease;
+        }
+
+        .refresh-indicator.show {
+            opacity: 1;
+            transform: translateY(0);
         }
 
         .loading {
@@ -142,8 +168,12 @@
             </div>
         </div>
 
-        <div class="last-updated">
+        <div class="last-updated" id="last-updated-container">
             Last updated: <span id="last-update">Never</span>
+        </div>
+
+        <div class="refresh-indicator" id="refresh-indicator">
+            🔄 Updating data...
         </div>
     </div>
 
@@ -194,7 +224,22 @@
             return data;
         }
 
+        function showRefreshIndicator() {
+            const indicator = document.getElementById('refresh-indicator');
+            const lastUpdated = document.getElementById('last-updated-container');
+            
+            indicator.classList.add('show');
+            lastUpdated.classList.add('refreshing');
+            
+            setTimeout(() => {
+                indicator.classList.remove('show');
+                lastUpdated.classList.remove('refreshing');
+            }, 2000);
+        }
+
         async function fetchSheetData() {
+            showRefreshIndicator();
+            
             try {
                 console.log('Fetching data from:', SHEET_URL);
                 
